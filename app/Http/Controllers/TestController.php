@@ -34,7 +34,6 @@ class TestController extends Controller
 
             //para cada linha do movimento
             foreach ($movimento as $i => $item) {
-
                 if ($item->tiporegistro == "NN") {
                     $controle = true;
                 }
@@ -54,8 +53,8 @@ class TestController extends Controller
                         foreach ($movimento as $j => $cupomCC) {
                             //se a linha $j for igual ao numerocupom que é CC, entra na condição
                             if ($cupomCC->numerocupomfiscal == $numerocupomfiscalCC &&  $cupomCC->tiporegistro != "CC" && $cupomCC->itemcancelado != "S") {
-                                dd("Executa procedures", $movimento->toArray());
-                                $this->gravaMovimento($item);
+                                dd("É CC e o ultimo", $movimento->toArray());
+                                $this->gravaMovimento($cupomCC);
                             }
                         }
                     } else if ($i == 0) {
@@ -70,11 +69,11 @@ class TestController extends Controller
                             ->where("data", $cupom->data)
                             ->get();
                         //então executa as procedures com -1
-                        foreach ($cupomAnteriorCancelado as $k => $itemk) {
-                            if ($itemk->numerocupomfiscal == $numerocupomfiscalCC && $itemk->tiporegistro != "CC" && $itemk->itemcancelado != "S") {
-
-                                dd("Executa procedures numerocupomfiscal-1");
-                                $this->gravaMovimento($item);
+                        foreach ($cupomAnteriorCancelado as $indexToCancel => $cupomToCancel) {
+                            //verificação segura se o novo cupomCC é igual ao anterior
+                            if ($cupomToCancel->numerocupomfiscal == ($numerocupomfiscalCC - 1) && $cupomToCancel->tiporegistro != "CC" && $cupomToCancel->itemcancelado != "S") {
+                                // dd("Executa procedures numerocupomfiscal-1");
+                                $this->gravaMovimento($cupomToCancel);
                             }
                         }
                     }
@@ -101,7 +100,7 @@ class TestController extends Controller
                     {$item->custo}::numeric,  
                     {$item->valortotalitem}::numeric, 
                     '-'::character, 
-                    '{$item->codigbarras}'::character )");
+                    '{$item->codigobarras}'::character )");
 
                     //Inserir ResumoVenda
                     $totaldivididoqtd = $item->valortotalitem / $item->quantidade;
@@ -109,14 +108,14 @@ class TestController extends Controller
                         {$item->loja}::integer,
                         '{$item->data}'::date, 
                         {$item->codigointernoproduto}::integer, 
-                    '{$item->codigbarras}'::character,
+                    '{$item->codigobarras}'::character,
                     {$item->quantidade}::numeric,
                      {$totaldivididoqtd}::numeric, 
                      '-')");
 
                     //Inserir ResumoVendaControle
                     if ($controle) {
-                        $setresumovendacontrole_online = $dbconnectionMain->statement("CALL setresumovendacontrole_online({$item->loja}, {$item->data}, {$item->codigointernoproduto}, {$item->codigbarras}, {$item->quantidade}, '-')");
+                        $setresumovendacontrole_online = $dbconnectionMain->statement("CALL setresumovendacontrole_online({$item->loja}, {$item->data}, {$item->codigointernoproduto}, {$item->codigobarras}, {$item->quantidade}, '-')");
                     }
                 }
 
@@ -127,12 +126,12 @@ class TestController extends Controller
 
                     //Inserir ResumoVenda
                     $totaldivididoqtd = $item->valortotalitem / $item->quantidade;
-                    $setresumovenda_online = $dbconnectionMain->statement("CALL setresumovenda_online({$item->loja}, {$item->data}, {$item->codigointernoproduto} ,{$item->codigbarras}, {$item->quantidade}, {$totaldivididoqtd}, '-')");
+                    $setresumovenda_online = $dbconnectionMain->statement("CALL setresumovenda_online({$item->loja}, {$item->data}, {$item->codigointernoproduto} ,{$item->codigobarras}, {$item->quantidade}, {$totaldivididoqtd}, '-')");
 
 
                     if ($controle) {
                         //Inserir ResumoVendaControle
-                        $setresumovendacontrole_online = DB::connection('pgsql')->statement("CALL setresumovendacontrole_online({$item->loja}, {$item->data}, {$item->codigointernoproduto}, {$item->codigbarras}, {$item->quantidade}, '-')");
+                        $setresumovendacontrole_online = DB::connection('pgsql')->statement("CALL setresumovendacontrole_online({$item->loja}, {$item->data}, {$item->codigointernoproduto}, {$item->codigobarras}, {$item->quantidade}, '-')");
                     }
                 }
 
@@ -192,19 +191,36 @@ class TestController extends Controller
         //     $resumovendacontrole = $dbconnectionMain->statement("CALL setresumovendacontrole_online({$item->loja}, {$item->data}, {$item->codigointernoproduto}, {$item->codigodebarras}, {$item->qtdcontrole}, {$item->operacao})");
         // }
 
+
         if ($item->tiporegistro == 'VI' && $item->itemcancelado != 'S') {
 
             $codigodebarras = ($item->formula != 'S' ? $item->codigobarras : 0);
             $valorTotalItem = ($item->formula != 'S' ? "" : "{$item->valortotalitem}, ");
 
             $baixa_estoque = $dbconnectionMain->statement(
-                "CALL setbaixaestoq_online({$item->codigointernoproduto}, {$item->loja}, {$item->data},
-            {$item->quantidade}, {$item->custo}, {$item->valortotalitem}, +, {$codigodebarras})"
+                "CALL setbaixaestoque_online(
+                    {$item->codigointernoproduto}::integer, 
+                    '{$item->loja}'::character,
+                    '{$item->data}'::date, 
+                    {$item->quantidade}::numeric, 
+                    {$item->custo}::numeric,  
+                    {$item->valortotalitem}::numeric, 
+                    '+'::character, 
+                    '{$item->codigobarras}'::character )"
             );
 
-            $resumo_venda = $dbconnectionMain->statement("
-                CALL setresumovenda_online({$item->loja}, {$item->data}, {$item->codigointernoproduto}, {$item->codigobarras},
-            {$item->quantidade}, {$item->valortotalitem}, '+')");
+            $totaldivididoqtd = $item->valortotalitem / $item->quantidade;
+            $resumo_venda = $dbconnectionMain->statement(
+
+                "CALL setresumovenda_online(
+                        {$item->loja}::integer,
+                        '{$item->data}'::date, 
+                        {$item->codigointernoproduto}::integer, 
+                    '{$item->codigobarras}'::character,
+                    {$item->quantidade}::numeric,
+                     {$totaldivididoqtd}::numeric, 
+                     '-')"
+            );
 
             if ($item->tiporegistro == 'CC') {
                 $resumo_Venda_controle = $dbconnectionMain->statement("
@@ -218,18 +234,38 @@ class TestController extends Controller
         }
 
         if ($item->tiporegistro = 'PC' && $item->itemcancelado != 'S') {
-            $setbaixacomposicao = $dbconnectionMain->statement("
-            CALL setbaixacomposicao_online({$item->operacao}, {$item->codigoproduto}, {$item->loja}, {$item->codigobarras}, {$item->data}, {$item->valortotalitem}, {$item->quantidade}, {$item->custo})
-            ");
+            // dd($item->codigobarras);
+            $codigobarras = trim($item->codigobarras);
+            $setbaixacomposicao = $dbconnectionMain->statement(
+                "
+            CALL setbaixacomposicao_online(
+            '+'::character, 
+            {$item->codigointernoproduto}::integer, 
+            {$item->loja}::integer, 
+            '{$codigobarras}'::character,
+            '{$item->data}'::date,
+            {$item->valortotalitem}::numeric,
+            {$item->quantidade}::numeric,
+            {$item->custo}::numeric
+            )"
+            );
         }
 
         if ($item->tiporegistro = 'PG') {
             $p_total = $item->valorrecebido - $item->valortroco;
-            $setresumocaixa = $dbconnectionMain->statement(("
-            CALL setresumocaixa_online({$item->loja}, {$item->data}, {$item->caixa}, {$item->finalizadora}, {$p_total}, {$item->operacao})
-            "));
+            $setresumocaixa = $dbconnectionMain->statement(
+                "CALL setresumocaixa_online(
+            {$item->loja}::integer, 
+            '{$item->data}'::date,
+            {$item->caixa}::integer, 
+            {$item->finalizadora}::integer, 
+            {$p_total}::numeric, 
+            '+'::character
+            )"
+            );
         }
 
+        //faltou verificar esse:
         if ($item->tiporegistro = 'PG' && $item->tipopagamento = 'CO') {
             $pessoa = Pessoa::on("pgsql_main")->selectRaw("*")->where("cnpjcpf", $item->cpf)->get();
             if ($pessoa) {
