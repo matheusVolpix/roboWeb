@@ -92,24 +92,41 @@ class TestController extends Controller
                 //se for registro de venda de item e não for composto
                 if ($item->formula != "S" && $item->itemcancelado != "S" && $item->cupomcancelado != "S" && $item->tiporegistro == "VI") {
 
-                    // dd($item->formula ,$item->itemcancelado, $item->cupomcancelado ,$item->tiporegistro);
-                    $setbaixaestoque_online = $dbconnectionMain->statement("CALL setbaixaestoque_online({$item->codigointernoproduto}, {$item->loja}, {$item->data}, {$item->quantidade}, {$item->custo},  {$item->valortotalitem}, '-', {$item->codigbarras} )");
+                    // dd($item);
+                    $setbaixaestoque_online = $dbconnectionMain->statement("CALL setbaixaestoque_online(
+                    {$item->codigointernoproduto}::integer, 
+                    '{$item->loja}'::character,
+                    '{$item->data}'::date, 
+                    {$item->quantidade}::numeric, 
+                    {$item->custo}::numeric,  
+                    {$item->valortotalitem}::numeric, 
+                    '-'::character, 
+                    '{$item->codigbarras}'::character )");
 
                     //Inserir ResumoVenda
                     $totaldivididoqtd = $item->valortotalitem / $item->quantidade;
-                    $setresumovenda_online = $dbconnectionMain->statement("CALL setresumovenda_online({$item->loja}, {$item->data}, {$item->codigointernoproduto} ,{$item->codigbarras}, {$item->quantidade}, {$totaldivididoqtd}, '-')");
+                    $setresumovenda_online = $dbconnectionMain->statement("CALL setresumovenda_online(
+                        {$item->loja}::integer,
+                        '{$item->data}'::date, 
+                        {$item->codigointernoproduto}::integer, 
+                    '{$item->codigbarras}'::character,
+                    {$item->quantidade}::numeric,
+                     {$totaldivididoqtd}::numeric, 
+                     '-')");
 
                     //Inserir ResumoVendaControle
                     if ($controle) {
-                        $setresumovendacontrole_online = DB::connection('pgsql')->statement("CALL setresumovendacontrole_online({$item->loja}, {$item->data}, {$item->codigointernoproduto}, {$item->codigbarras}, {$item->quantidade}, '-')");
+                        $setresumovendacontrole_online = $dbconnectionMain->statement("CALL setresumovendacontrole_online({$item->loja}, {$item->data}, {$item->codigointernoproduto}, {$item->codigbarras}, {$item->quantidade}, '-')");
                     }
                 }
 
                 //se for registro de venda de item e for composto
                 if ($item->formula == "S" && $item->itemcancelado != "S" && $item->cupomcancelado != "S" && $item->tiporegistro == "VI") {
+                    dd($item);
                     $setbaixaestoque_online = $dbconnectionMain->statement("CALL setbaixaestoque_online ({$item->codigointernoproduto}, {$item->loja}, {$item->data}, {$item->quantidade}, {$item->custo},  {$item->valortotalitem}, '-', 0 )");
 
                     //Inserir ResumoVenda
+                    $totaldivididoqtd = $item->valortotalitem / $item->quantidade;
                     $setresumovenda_online = $dbconnectionMain->statement("CALL setresumovenda_online({$item->loja}, {$item->data}, {$item->codigointernoproduto} ,{$item->codigbarras}, {$item->quantidade}, {$totaldivididoqtd}, '-')");
 
 
@@ -143,18 +160,24 @@ class TestController extends Controller
 
                 if ($item->cupomcancelado != "S" && $item->tiporegistro == "PG") {
                     $valorTotal = $item->valorrecebido - $item->valortroco;
-                    $setresumocaixa_online = $dbconnectionMain->statement("CALL setresumocaixa_online({$item->loja}, '{$item->data}', {$item->finalizadora}, {$item->valorTotal}, '-')");
+                    $setresumocaixa_online = $dbconnectionMain->unprepared("CALL setresumocaixa_online(
+                        '{$item->loja}'::character,
+                        '{$item->data}'::date,
+                        {$item->caixa}::integer,
+                        {$item->finalizadora}::integer,
+                        {$valorTotal}::numeric,
+                        '-'::character
+                    )");
                     $commit = true;
                 }
 
-                if ($i == 0 && $item->cupomcancelado != "S" && ($item->tiporegistro == "EM" || $item->tiporegistro == "CB" && $item->tiporegistro == "LX" || $item->tiporegistro =="AC" || $item->tiporegistro == "GV" || $item->tiporegistro == "RZ")){
+                if ($i == 0 && $item->cupomcancelado != "S" && ($item->tiporegistro == "EM" || $item->tiporegistro == "CB" && $item->tiporegistro == "LX" || $item->tiporegistro == "AC" || $item->tiporegistro == "GV" || $item->tiporegistro == "RZ")) {
                     $commit = true;
                 }
-                
-                if($i === $movimento->keys()->last() && $item->tiporegistro == "CC"){
+
+                if ($i === $movimento->keys()->last() && $item->tiporegistro == "CC") {
                     $commit = true;
                 }
-                
             }
         }
 
@@ -213,11 +236,5 @@ class TestController extends Controller
                 $setbaixaconvenio_online = "CALL setbaixaconvenio_online({$item->cpf},{$item->loja}, {$item->data}, {$item->nome}, {$item->ecf}, {$item->numerocupomfiscal}, {$item->finalizadora}, {$item->valortotalcupom}, {$item->operacao})";
             }
         }
-
-
-        //////////////////EXEMPLOOOOOOOOOOOOOOOOS::::::::::
-
-
-
     }
 }
